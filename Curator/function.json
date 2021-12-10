@@ -1,11 +1,11 @@
 {
-  "scriptFile": "__init__.py",
+  "scriptFile": "generate_random.py",
   "bindings": [
     {
       "name": "mytimer",
       "type": "timerTrigger",
       "direction": "in",
-      "schedule": "0 * * */7 * *"
+      "schedule": "* */2 * * * *"
     }
   ]
 }
