@@ -13,4 +13,4 @@ if os.path.exists('./local.settings.json'):
 class ConfigSettings(object):
     STORAGE_CONNECTION_STRING = os.environ['STORAGE_CONNECTION_STRING']
 
-    RAW_IMAGES_CONTAINERNAME = 'rawimages'
+    OUTPUT_IMAGES_CONTAINERNAME = 'randomimages'

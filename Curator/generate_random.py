@@ -4,6 +4,7 @@ from flask import Flask, jsonify
 from azure.storage.blob import BlobServiceClient, BlobClient, ContainerClient
 import time
 import tensorflow.compat.v1 as tf
+tf.disable_v2_behavior()
 import tensorflow_hub as hub
 import numpy as np
 from scipy.stats import truncnorm
@@ -19,9 +20,9 @@ from .config import ConfigSettings
 import azure.functions as func
 
 
-module_path = 'https://tfhub.dev/deepmind/biggan-256/2'
+module_path = 'https://tfhub.dev/deepmind/biggan-deep-256/1'
 rand_seed = 123
-truncation = 0.5
+truncation = 0.2
 
 tf.reset_default_graph()
 tf.disable_eager_execution()
@@ -45,12 +46,11 @@ sess = tf.Session()
 sess.run(initializer)
 
 
-
 def main(mytimer: func.TimerRequest) -> None:
     utc_timestamp = datetime.datetime.utcnow().replace(
         tzinfo=datetime.timezone.utc).isoformat()
 
-    logging.info('Python timer trigger function ran at %s', utc_timestamp)    
+    logging.info('Python timer trigger RANDOM function ran at %s', utc_timestamp)    
 
     app = Flask(__name__, static_url_path='') #, static_folder='public', )
 
@@ -58,11 +58,11 @@ def main(mytimer: func.TimerRequest) -> None:
     blob_service_client = BlobServiceClient.from_connection_string(ConfigSettings.STORAGE_CONNECTION_STRING)
 
     # Create the output container (if it doesn't already exist)
-    output_container = ContainerClient.from_connection_string(ConfigSettings.STORAGE_CONNECTION_STRING, ConfigSettings.RAW_IMAGES_CONTAINERNAME)
+    output_container = ContainerClient.from_connection_string(ConfigSettings.STORAGE_CONNECTION_STRING, ConfigSettings.OUTPUT_IMAGES_CONTAINERNAME)
     try:
         container_properties = output_container.get_container_properties()
     except Exception as e:
-        output_container = blob_service_client.create_container(ConfigSettings.RAW_IMAGES_CONTAINERNAME)
+        output_container = blob_service_client.create_container(ConfigSettings.OUTPUT_IMAGES_CONTAINERNAME)
 
     try:
         num = 2
@@ -92,7 +92,7 @@ def main(mytimer: func.TimerRequest) -> None:
                 #file_body = bytes("b'" + str(data) + "'")
                 filename = str(uuid.uuid1()) + '.jpg'
                 # upload the file
-                UploadBlob(filename, converted_data, ConfigSettings.RAW_IMAGES_CONTAINERNAME, blob_service_client)
+                UploadBlob(filename, converted_data, ConfigSettings.OUTPUT_IMAGES_CONTAINERNAME, blob_service_client)
 
             else:
                 error_count+=1
@@ -105,7 +105,12 @@ def main(mytimer: func.TimerRequest) -> None:
         return '', 500
 
 
-def sample(vectors, labels, batch_size=10):
+def sample(vectors, labels, batch_size=2048):
+    """
+    Accepts a number of vectors and labels as arguments,
+    runs them through a tf session with the tf hub module to create new images,
+    and returns the new images.
+    """
     num = vectors.shape[0]
     ims = []
     for batch_start in range(0, num, batch_size):
@@ -128,11 +133,18 @@ def create_random_images(num_images, max_classes):
 
 
 def truncated_z_sample(batch_size):
+    """
+    Creates a batch of a number of random vectors.
+    """
     values = truncnorm.rvs(-2, 2, size=(batch_size, dim_z), random_state=random_state)
     return truncation * values
 
 
 def create_labels(num, max_classes):
+    """
+    Creates a label to identify the vector that is not constrained by the 
+    naming conventions of a language.
+    """
     label = np.zeros((num, vocab_size))
     for i in range(len(label)):
         for _ in range(random.randint(1, max_classes)):
